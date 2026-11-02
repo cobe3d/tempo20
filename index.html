@@ -1,0 +1,873 @@
+<title>深蹲節奏器</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Big+Shoulders+Display:wght@600;800&family=Noto+Sans+TC:wght@400;500;700&display=swap">
+<style>
+/* Layout: one column — tempo dial with change-countdown ring on top, play controls, five plate-colored BPM slots, settings last */
+:root {
+  --bg: #eceef1;
+  --surface: #ffffff;
+  --line: #d3d8de;
+  --fg: #15181c;
+  --muted: #5b636e;
+  /* competition bumper-plate colors, one per slot */
+  --p1: #d22b3c; --ink1: #ffffff;
+  --p2: #1f5fc4; --ink2: #ffffff;
+  --p3: #d9a400; --ink3: #15181c;
+  --p4: #23904a; --ink4: #ffffff;
+  --p5: #7b8591; --ink5: #ffffff;
+  --active: var(--p1);
+  --f-display: "Big Shoulders Display", "Arial Narrow", "Noto Sans TC", sans-serif;
+  --f-body: "Noto Sans TC", "Microsoft JhengHei", "PingFang TC", sans-serif;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #121417; --surface: #1c1f24; --line: #2e333b; --fg: #eef1f4; --muted: #9aa3ae;
+    --p1: #e8414f; --p2: #3d7ae0; --p3: #f0bf1a; --p4: #34ad5e; --p5: #d9dde2; --ink5: #121417;
+    color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #121417; --surface: #1c1f24; --line: #2e333b; --fg: #eef1f4; --muted: #9aa3ae;
+  --p1: #e8414f; --p2: #3d7ae0; --p3: #f0bf1a; --p4: #34ad5e; --p5: #d9dde2; --ink5: #121417;
+  color-scheme: dark;
+}
+
+html, body { height: 100%; }
+body {
+  background: var(--bg);
+  color: var(--fg);
+  font-family: var(--f-body);
+  font-size: 15px;
+  line-height: 1.5;
+}
+.app {
+  max-width: 560px;
+  margin: 0 auto;
+  padding-block: 18px 40px;
+  padding-left: max(16px, env(safe-area-inset-left, 0px));
+  padding-right: max(16px, env(safe-area-inset-right, 0px));
+  display: flex;
+  flex-direction: column;
+  gap: 22px;
+}
+[hidden] { display: none !important; }
+button, input, select { font: inherit; color: inherit; }
+button { cursor: pointer; }
+:focus-visible { outline: 3px solid var(--active); outline-offset: 2px; }
+
+header { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; flex-wrap: wrap; }
+h1 { margin: 0; font-size: 18px; font-weight: 700; letter-spacing: .04em; }
+.stats { display: flex; align-items: baseline; gap: 10px; color: var(--muted); font-size: 13px; font-variant-numeric: tabular-nums; }
+.link { border: 0; background: none; padding: 0; color: var(--muted); text-decoration: underline; text-underline-offset: 3px; font-size: 13px; }
+
+/* dial */
+.dial { position: relative; width: min(78vw, 320px); max-width: 100%; aspect-ratio: 1; margin: 0 auto; }
+.dial .ring { position: absolute; inset: 0; width: 100%; height: 100%; transform: rotate(-90deg); }
+.track { fill: none; stroke: var(--line); stroke-width: 7; }
+.prog { fill: none; stroke: var(--active); stroke-width: 7; stroke-linecap: round; transition: stroke .3s; }
+.pulse { position: absolute; inset: 13%; border-radius: 50%; background: var(--active); opacity: 0; }
+.figure { position: absolute; inset: 12%; width: 76%; height: 76%; overflow: visible; }
+.figure .floor { stroke: var(--line); stroke-width: 2.5; stroke-linecap: round; }
+.figure .limb { fill: none; stroke: var(--fg); stroke-linecap: round; stroke-linejoin: round; }
+.figure .head { fill: var(--fg); }
+
+.readout { display: flex; justify-content: space-between; align-items: flex-end; gap: 16px; flex-wrap: wrap; margin-top: -4px; }
+.tempo { display: flex; align-items: flex-end; gap: 10px; }
+.bpm {
+  font-family: var(--f-display); font-weight: 800;
+  font-size: clamp(66px, 19vw, 92px); line-height: .82;
+  font-variant-numeric: tabular-nums;
+}
+.tempo-meta { display: flex; flex-direction: column; gap: 2px; padding-bottom: 2px; }
+.unit { font-family: var(--f-display); font-weight: 600; font-size: 16px; letter-spacing: .28em; color: var(--muted); }
+.per { font-size: 13px; color: var(--muted); font-variant-numeric: tabular-nums; }
+
+.next { display: flex; flex-direction: column; align-items: flex-end; gap: 4px; color: var(--muted); font-size: 13px; }
+.next b { font-family: var(--f-display); font-weight: 600; font-size: 38px; line-height: .9; color: var(--fg); font-variant-numeric: tabular-nums; }
+.next.soon b { color: var(--active); }
+
+/* controls */
+.controls { display: grid; grid-template-columns: 2fr 1fr; gap: 10px; }
+.primary {
+  min-height: 62px; border: 0; border-radius: 14px;
+  background: var(--fg); color: var(--bg);
+  font-size: 20px; font-weight: 700; letter-spacing: .1em;
+}
+.secondary {
+  min-height: 62px; border: 1px solid var(--line); border-radius: 14px;
+  background: var(--surface); font-size: 16px; font-weight: 500;
+}
+.primary:active, .secondary:active { transform: translateY(1px); }
+
+/* slots */
+.section-head { display: flex; justify-content: space-between; align-items: center; gap: 12px; flex-wrap: wrap; margin-bottom: 6px; }
+.section-head h2 { margin: 0; font-size: 15px; font-weight: 700; }
+.section-head p { margin: 0; font-size: 12px; color: var(--muted); }
+.head-left { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.count {
+  display: inline-flex; align-items: center;
+  border: 1px solid var(--line); border-radius: 10px; background: var(--surface);
+}
+.count button {
+  border: 0; background: transparent; color: var(--muted);
+  width: 34px; height: 32px; font-size: 18px; line-height: 1; border-radius: 9px;
+  touch-action: manipulation;
+}
+.count button:hover:not(:disabled) { color: var(--fg); }
+.count button:disabled { opacity: .35; cursor: default; }
+.count span { min-width: 3.4em; text-align: center; font-size: 14px; font-weight: 700; font-variant-numeric: tabular-nums; }
+.slots { display: grid; grid-template-columns: repeat(var(--cols, 5), minmax(0, 1fr)); gap: 8px; }
+.num { padding-top: 4px; text-align: center; font-size: 11px; color: var(--muted); font-variant-numeric: tabular-nums; }
+.slot {
+  display: flex; flex-direction: column;
+  background: var(--surface);
+  border: 1px solid var(--line); border-top: 7px solid var(--c);
+  border-radius: 12px; overflow: hidden;
+  transition: box-shadow .2s;
+}
+.slot.on { box-shadow: 0 0 0 2px var(--c); border-color: var(--c); }
+.slot input {
+  width: 100%; min-width: 0; border: 0; background: transparent;
+  text-align: center; padding: 0;
+  font-family: var(--f-display); font-weight: 800; font-size: 32px; line-height: 1.2;
+  font-variant-numeric: tabular-nums;
+  -moz-appearance: textfield; appearance: textfield;
+}
+.slot input::-webkit-inner-spin-button, .slot input::-webkit-outer-spin-button { -webkit-appearance: none; margin: 0; }
+.step {
+  border: 0; background: transparent; color: var(--muted);
+  min-height: 38px; font-size: 22px; line-height: 1;
+  touch-action: manipulation; user-select: none; -webkit-user-select: none;
+}
+.step:hover { background: color-mix(in srgb, var(--line) 50%, transparent); color: var(--fg); }
+.use {
+  border: 0; border-top: 1px solid var(--line); background: transparent;
+  min-height: 40px; font-size: 13px; font-weight: 500;
+}
+.slot.on .use { background: var(--c); color: var(--ink); border-top-color: var(--c); font-weight: 700; }
+.slot.done { opacity: .5; }
+.dur {
+  display: flex; align-items: baseline; justify-content: center; gap: 2px;
+  border-top: 1px solid var(--line); padding: 4px 4px 6px;
+  font-size: 12px; color: var(--muted);
+}
+.slot .dur input {
+  width: 2.6em; font-size: 20px; font-weight: 600; line-height: 1.1;
+  border-bottom: 1.5px dashed var(--line);
+}
+
+/* mode switch */
+.seg { display: inline-flex; padding: 3px; gap: 3px; border-radius: 10px; background: var(--line); }
+.seg button {
+  border: 0; border-radius: 8px; background: transparent; color: var(--muted);
+  padding: 5px 14px; font-size: 14px; font-weight: 500;
+}
+.seg button[aria-pressed="true"] { background: var(--surface); color: var(--fg); font-weight: 700; box-shadow: 0 1px 2px rgb(0 0 0 / .12); }
+.hint { margin: 0 0 10px; font-size: 12px; color: var(--muted); }
+
+/* settings */
+.settings { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
+.field { display: flex; flex-direction: column; gap: 6px; font-size: 13px; color: var(--muted); }
+.field select {
+  padding: 10px 12px; border-radius: 10px; border: 1px solid var(--line);
+  background: var(--surface); color: var(--fg); font-size: 15px;
+}
+.field input[type="range"] { width: 100%; accent-color: var(--active); margin: 12px 0 0; }
+@media (max-width: 360px) { .settings { grid-template-columns: 1fr; } }
+
+/* export */
+.export { display: flex; flex-direction: column; gap: 8px; }
+.export .secondary { min-height: 52px; width: 100%; }
+.export .secondary:disabled { opacity: .65; cursor: progress; }
+.export .hint { margin: 0; }
+
+/* toast */
+.toast {
+  position: fixed; left: 50%; bottom: calc(20px + env(safe-area-inset-bottom, 0px));
+  transform: translate(-50%, 12px);
+  background: var(--fg); color: var(--bg);
+  padding: 10px 18px; border-radius: 999px; font-weight: 700; font-size: 15px;
+  opacity: 0; transition: opacity .2s, transform .2s; pointer-events: none; white-space: nowrap;
+}
+.toast.show { opacity: 1; transform: translate(-50%, 0); }
+
+@media (prefers-reduced-motion: reduce) {
+  .toast, .prog, .slot { transition: none; }
+}
+</style>
+
+<div class="app">
+  <header>
+    <h1>深蹲節奏器</h1>
+    <div class="stats">
+      <span id="stats">已練 0:00 · 共 0 拍</span>
+      <button class="link" id="resetStats" type="button">歸零</button>
+    </div>
+  </header>
+
+  <div class="dial">
+    <svg class="ring" viewBox="0 0 200 200" aria-hidden="true">
+      <circle class="track" cx="100" cy="100" r="92"></circle>
+      <circle class="prog" id="prog" cx="100" cy="100" r="92"></circle>
+    </svg>
+    <div class="pulse" id="pulse"></div>
+    <svg class="figure" viewBox="0 0 120 120" role="img" aria-label="人偶跟著節拍示範深蹲">
+      <line class="floor" x1="24" y1="114" x2="100" y2="114"></line>
+      <polyline class="limb" id="leg" stroke-width="7.5"></polyline>
+      <line class="limb" id="torso" stroke-width="9"></line>
+      <line class="limb" id="arm" stroke-width="5.5"></line>
+      <circle class="head" id="head" r="7.5"></circle>
+    </svg>
+  </div>
+
+  <div class="readout">
+    <div class="tempo">
+      <div class="bpm" id="bpm">30</div>
+      <div class="tempo-meta">
+        <span class="unit">BPM</span>
+        <span class="per" id="per">每拍 2.00 秒</span>
+      </div>
+    </div>
+    <div class="next" id="next"><span id="nextLabel">下次換節奏</span><b id="countdown">3:00</b></div>
+  </div>
+
+  <div class="controls">
+    <button class="primary" id="play" type="button">開始</button>
+    <button class="secondary" id="random" type="button">隨機換</button>
+  </div>
+
+  <section>
+    <div class="section-head">
+      <div class="head-left">
+        <h2>節奏組（BPM）</h2>
+        <div class="count" role="group" aria-label="組數">
+          <button type="button" id="countDown" aria-label="少一組">−</button>
+          <span id="countLabel" aria-live="polite">5 組</span>
+          <button type="button" id="countUp" aria-label="多一組">+</button>
+        </div>
+      </div>
+      <div class="seg" role="group" aria-label="換節奏方式">
+        <button type="button" id="modeRandom">隨機</button>
+        <button type="button" id="modeSeq">依序</button>
+      </div>
+    </div>
+    <p class="hint" id="hint">點「使用」手動切換，數字可直接改</p>
+    <div class="slots" id="slots"></div>
+  </section>
+
+  <section class="settings">
+    <label class="field" for="volume">音量
+      <input type="range" id="volume" min="0" max="100" step="1">
+    </label>
+    <label class="field" for="loop" id="loopField">播完全部後
+      <select id="loop">
+        <option value="0">停止</option>
+        <option value="1">從頭再來</option>
+      </select>
+    </label>
+  </section>
+
+  <section class="export" id="exportBox">
+    <button class="secondary" id="exportBtn" type="button">匯出 MP3</button>
+    <p class="hint" id="exportNote">把每一組依序播放的節拍聲做成一個音檔，放進手機就能直接聽。</p>
+  </section>
+</div>
+
+<div class="toast" id="toast" role="status" aria-live="polite"></div>
+
+<script>
+(() => {
+  const MIN = 10, MAX = 240;
+  const MAX_SLOTS = 20;
+  const DEFAULTS = {
+    bpms: Array.from({ length: MAX_SLOTS }, (_, i) => 30 + i * 10),
+    seconds: Array(MAX_SLOTS).fill(180),
+    count: 5, volume: 80, mode: 'random', loop: false,
+  };
+  const DUR_MIN = 1, DUR_MAX = 3600;
+  const clampDur = n => Math.min(DUR_MAX, Math.max(DUR_MIN, Math.round(n)));
+  const STORE_KEY = 'squat-tempo-v1';
+  const C = 2 * Math.PI * 92;
+  const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+  const $ = id => document.getElementById(id);
+  const clamp = n => Math.min(MAX, Math.max(MIN, Math.round(n)));
+
+  // ---- settings ----
+  let settings = load();
+  function load() {
+    try {
+      const s = JSON.parse(localStorage.getItem(STORE_KEY));
+      if (s && Array.isArray(s.bpms)) {
+        // older saves hold fewer slots and keep times in minutes; fill the rest from the defaults
+        const pad = (arr, def, fix) => def.map((d, i) => (Array.isArray(arr) && arr[i] != null ? fix(Number(arr[i]) || d) : d));
+        const oldSeconds = Array.isArray(s.durations) ? s.durations.map(m => m * 60) : null;
+        return {
+          bpms: pad(s.bpms, DEFAULTS.bpms, clamp),
+          seconds: pad(s.seconds || oldSeconds, DEFAULTS.seconds, clampDur),
+          count: Number.isInteger(s.count)
+            ? Math.min(MAX_SLOTS, Math.max(1, s.count))
+            : Math.min(MAX_SLOTS, s.bpms.length),
+          volume: Number.isFinite(s.volume) ? s.volume : DEFAULTS.volume,
+          mode: s.mode === 'sequence' ? 'sequence' : 'random',
+          loop: s.loop === true,
+        };
+      }
+    } catch (e) {}
+    return structuredClone(DEFAULTS);
+  }
+  function save() {
+    try { localStorage.setItem(STORE_KEY, JSON.stringify(settings)); } catch (e) {}
+  }
+
+  // ---- state ----
+  let current = 0;
+  let playing = false;
+  let elapsed = 0, beats = 0, fresh = true;
+  let ctx = null, master = null, timer = null, lastTick = 0, nextBeat = 0;
+  const beatQueue = [];
+
+  const bpm = () => settings.bpms[current];
+  const isSeq = () => settings.mode === 'sequence';
+  const total = () => settings.seconds[current] * 1000;
+  let remaining = total();
+
+  // ---- audio ----
+  function ensureAudio() {
+    if (!ctx) {
+      ctx = new (window.AudioContext || window.webkitAudioContext)();
+      master = ctx.createGain();
+      master.connect(ctx.destination);
+      applyVolume();
+    }
+    if (ctx.state === 'suspended') ctx.resume();
+  }
+  function applyVolume() {
+    if (master) master.gain.value = Math.pow(settings.volume / 100, 2) * 0.9;
+  }
+  // the sound functions take an optional context/output so the MP3 export can render them offline
+  // low thump + short wooden tick: carries in a gym without being shrill
+  function click(t, c = ctx, out = master) {
+    const o = c.createOscillator(), g = c.createGain();
+    o.type = 'sine';
+    o.frequency.setValueAtTime(170, t);
+    o.frequency.exponentialRampToValueAtTime(55, t + 0.13);
+    g.gain.setValueAtTime(0.0001, t);
+    g.gain.exponentialRampToValueAtTime(1, t + 0.004);
+    g.gain.exponentialRampToValueAtTime(0.0001, t + 0.17);
+    o.connect(g).connect(out);
+    o.start(t); o.stop(t + 0.2);
+
+    const o2 = c.createOscillator(), g2 = c.createGain();
+    o2.type = 'triangle';
+    o2.frequency.setValueAtTime(1250, t);
+    g2.gain.setValueAtTime(0.0001, t);
+    g2.gain.exponentialRampToValueAtTime(0.45, t + 0.002);
+    g2.gain.exponentialRampToValueAtTime(0.0001, t + 0.045);
+    o2.connect(g2).connect(out);
+    o2.start(t); o2.stop(t + 0.06);
+  }
+  // two rising tones = tempo is changing
+  function chime(t, c = ctx, out = master) {
+    [[784, 0], [1175, 0.13]].forEach(([f, d]) => {
+      const o = c.createOscillator(), g = c.createGain();
+      o.type = 'sine';
+      o.frequency.value = f;
+      g.gain.setValueAtTime(0.0001, t + d);
+      g.gain.exponentialRampToValueAtTime(0.5, t + d + 0.01);
+      g.gain.exponentialRampToValueAtTime(0.0001, t + d + 0.3);
+      o.connect(g).connect(out);
+      o.start(t + d); o.stop(t + d + 0.32);
+    });
+  }
+  // three rising tones = whole sequence finished
+  function fanfare(t, c = ctx, out = master) {
+    [[784, 0, .3], [988, .16, .3], [1175, .32, .7]].forEach(([f, d, len]) => {
+      const o = c.createOscillator(), g = c.createGain();
+      o.type = 'sine';
+      o.frequency.value = f;
+      g.gain.setValueAtTime(0.0001, t + d);
+      g.gain.exponentialRampToValueAtTime(0.5, t + d + 0.01);
+      g.gain.exponentialRampToValueAtTime(0.0001, t + d + len);
+      o.connect(g).connect(out);
+      o.start(t + d); o.stop(t + d + len + 0.02);
+    });
+  }
+
+  // ---- scheduler ----
+  function tick() {
+    const now = performance.now();
+    const dt = now - lastTick;
+    lastTick = now;
+    elapsed += dt;
+    remaining -= dt;
+    if (remaining <= 0) {
+      if (isSeq()) nextInSequence(true); else randomSwitch();
+      if (!playing) return;
+    }
+    // background tabs throttle timers to ~1s, so schedule further ahead there
+    const ahead = document.hidden ? 1.6 : 0.12;
+    while (nextBeat < ctx.currentTime + ahead) {
+      click(nextBeat);
+      beatQueue.push(nextBeat);
+      beats++;
+      nextBeat += 60 / bpm();
+    }
+    if (document.hidden) beatQueue.length = 0;
+  }
+
+  function start() {
+    ensureAudio();
+    playing = true;
+    fresh = false;
+    lastTick = performance.now();
+    // first beat lands half a rep in, so the figure has time to squat down to it
+    nextBeat = ctx.currentTime + Math.max(0.08, 30 / bpm());
+    lastBeat = nextBeat - 60 / bpm();
+    timer = setInterval(tick, 25);
+    tick();
+    requestWake();
+    render();
+  }
+  function pause() {
+    playing = false;
+    clearInterval(timer);
+    beatQueue.length = 0;
+    releaseWake();
+    render();
+  }
+
+  function switchTo(i, auto) {
+    const oldBpm = bpm();
+    current = i;
+    remaining = total();
+    if (playing) {
+      chime(ctx.currentTime + 0.02);
+      const last = nextBeat - 60 / oldBpm;
+      nextBeat = Math.max(ctx.currentTime + 0.4, last + 60 / bpm());
+    }
+    render();
+    toast((auto ? '自動換成 ' : '換成 ') + bpm() + ' BPM');
+  }
+  function randomSwitch(auto = true) {
+    const idx = [...Array(settings.count).keys()].filter(j => j !== current);
+    let pool = idx.filter(j => settings.bpms[j] !== bpm());
+    if (!pool.length) pool = idx;
+    // with a single slot there is nothing to switch to: restart it
+    switchTo(pool.length ? pool[Math.floor(Math.random() * pool.length)] : current, auto);
+  }
+  function nextInSequence(auto) {
+    if (current < settings.count - 1) switchTo(current + 1, auto);
+    else if (settings.loop || !auto) switchTo(0, auto);
+    else finish();
+  }
+  function finish() {
+    pause();
+    fanfare(ctx.currentTime + 0.05);
+    current = 0;
+    remaining = total();
+    fresh = true;
+    render();
+    toast('全部完成！');
+  }
+
+  // ---- wake lock: keep the phone screen on while training ----
+  let wake = null;
+  async function requestWake() {
+    try { if ('wakeLock' in navigator) wake = await navigator.wakeLock.request('screen'); } catch (e) {}
+  }
+  function releaseWake() {
+    try { wake && wake.release(); } catch (e) {}
+    wake = null;
+  }
+  document.addEventListener('visibilitychange', () => {
+    if (playing && !document.hidden) requestWake();
+  });
+
+  // ---- view ----
+  const slotsEl = $('slots');
+  const slotEls = settings.bpms.map((_, i) => {
+    const el = document.createElement('div');
+    el.className = 'slot';
+    // plate colors repeat after five, like change plates
+    el.style.setProperty('--c', `var(--p${i % 5 + 1})`);
+    el.style.setProperty('--ink', `var(--ink${i % 5 + 1})`);
+    el.innerHTML = `
+      <span class="num">第 ${i + 1} 組</span>
+      <button class="step" type="button" data-d="1" aria-label="第 ${i + 1} 組加 1">+</button>
+      <input type="number" inputmode="numeric" id="bpm${i}" min="${MIN}" max="${MAX}" aria-label="第 ${i + 1} 組 BPM">
+      <button class="step" type="button" data-d="-1" aria-label="第 ${i + 1} 組減 1">−</button>
+      <label class="dur" for="dur${i}"><input type="number" inputmode="numeric" id="dur${i}" min="${DUR_MIN}" max="${DUR_MAX}" step="1" aria-label="第 ${i + 1} 組秒數"><span>秒</span></label>
+      <button class="use" type="button">使用</button>`;
+    slotsEl.appendChild(el);
+
+    const input = el.querySelector('input');
+    input.value = settings.bpms[i];
+    input.addEventListener('input', () => {
+      const n = Number(input.value);
+      if (input.value !== '' && n >= MIN && n <= MAX) setBpm(i, n, false);
+    });
+    input.addEventListener('change', () => setBpm(i, Number(input.value) || settings.bpms[i], true));
+    input.addEventListener('keydown', e => { if (e.key === 'Enter') input.blur(); });
+
+    const durInput = el.querySelector('.dur input');
+    durInput.value = settings.seconds[i];
+    durInput.addEventListener('change', () => setDur(i, Number(durInput.value) || settings.seconds[i]));
+    durInput.addEventListener('keydown', e => { if (e.key === 'Enter') durInput.blur(); });
+
+    el.querySelectorAll('.step').forEach(btn => {
+      const d = Number(btn.dataset.d);
+      let hold = null, rep = null;
+      const stop = () => { clearTimeout(hold); clearInterval(rep); };
+      btn.addEventListener('pointerdown', e => {
+        if (e.button !== 0) return;
+        setBpm(i, settings.bpms[i] + d, true);
+        hold = setTimeout(() => { rep = setInterval(() => setBpm(i, settings.bpms[i] + d, true), 70); }, 400);
+      });
+      ['pointerup', 'pointerleave', 'pointercancel'].forEach(ev => btn.addEventListener(ev, stop));
+      btn.addEventListener('click', e => { if (e.detail === 0) setBpm(i, settings.bpms[i] + d, true); });
+    });
+
+    el.querySelector('.use').addEventListener('click', () => {
+      if (i !== current) switchTo(i, false);
+    });
+    return el;
+  });
+
+  function setBpm(i, n, writeBack) {
+    settings.bpms[i] = clamp(n);
+    if (writeBack) slotEls[i].querySelector('input').value = settings.bpms[i];
+    save();
+    render();
+  }
+  function setDur(i, n) {
+    const before = total();
+    settings.seconds[i] = clampDur(n);
+    slotEls[i].querySelector('.dur input').value = settings.seconds[i];
+    // keep the time already spent in the current slot
+    if (i === current) remaining = Math.max(0, total() - (before - remaining));
+    save();
+    render();
+  }
+  function setMode(m) {
+    if (settings.mode === m) return;
+    settings.mode = m;
+    save();
+    if (m === 'sequence' && current !== 0) switchTo(0, false);
+    else { remaining = total(); render(); }
+  }
+  function setCount(n) {
+    n = Math.min(MAX_SLOTS, Math.max(1, n));
+    if (n === settings.count) return;
+    settings.count = n;
+    save();
+    if (current >= n) switchTo(n - 1, false);
+    else render();
+  }
+
+  const fmt = ms => {
+    const s = Math.max(0, Math.ceil(ms / 1000));
+    return Math.floor(s / 60) + ':' + String(s % 60).padStart(2, '0');
+  };
+  const fmtUp = ms => {
+    const s = Math.floor(ms / 1000);
+    const h = Math.floor(s / 3600), m = Math.floor(s / 60) % 60, sec = s % 60;
+    return (h ? h + ':' + String(m).padStart(2, '0') : m) + ':' + String(sec).padStart(2, '0');
+  };
+
+  function render() {
+    document.documentElement.style.setProperty('--active', `var(--p${current % 5 + 1})`);
+    $('bpm').textContent = bpm();
+    $('per').textContent = '每拍 ' + (60 / bpm()).toFixed(2) + ' 秒';
+    $('play').textContent = playing ? '暫停' : (fresh ? '開始' : '繼續');
+    const seq = isSeq();
+    $('modeRandom').setAttribute('aria-pressed', String(!seq));
+    $('modeSeq').setAttribute('aria-pressed', String(seq));
+    $('random').textContent = seq ? '下一組' : '隨機換';
+    $('loopField').hidden = !seq;
+    $('exportBox').hidden = !seq;
+    const n = settings.count;
+    const sum = settings.seconds.slice(0, n).reduce((a, b) => a + b, 0);
+    const m = Math.floor(sum / 60), r = sum % 60;
+    const sumText = [m ? m + ' 分' : '', r || !m ? r + ' 秒' : ''].filter(Boolean).join(' ');
+    if (!exporting) $('exportBtn').textContent = `匯出 MP3（全程 ${sumText}）`;
+    $('hint').textContent = seq
+      ? `由左到右依序播放，點「使用」跳到那一組 · 全程 ${sumText}`
+      : '每組播完自己的秒數，就隨機換到另一組；點「使用」手動切換';
+    $('countLabel').textContent = n + ' 組';
+    $('countDown').disabled = n <= 1;
+    $('countUp').disabled = n >= MAX_SLOTS;
+    // 1–5 slots sit in one row (at least 3 columns wide); 6–10 split into two rows; beyond that, rows of five
+    slotsEl.style.setProperty('--cols', n <= 5 ? Math.max(3, n) : Math.min(5, Math.ceil(n / 2)));
+    slotEls.forEach((el, i) => {
+      const on = i === current;
+      el.hidden = i >= n;
+      el.classList.toggle('on', on);
+      el.classList.toggle('done', seq && i < current);
+      el.querySelector('.use').textContent = on ? '使用中' : '使用';
+    });
+    renderTime();
+  }
+  function renderTime() {
+    $('countdown').textContent = fmt(remaining);
+    $('next').classList.toggle('soon', playing && remaining <= 10000);
+    let label = isSeq() ? `第 ${current + 1}/${settings.count} 組，剩下` : '下次換節奏';
+    if (!playing && !fresh) label = '暫停中 · ' + label;
+    $('nextLabel').textContent = label;
+    $('prog').style.strokeDasharray = C;
+    $('prog').style.strokeDashoffset = C * (1 - Math.max(0, remaining) / total());
+    $('stats').textContent = '已練 ' + fmtUp(elapsed) + ' · 共 ' + beats + ' 拍';
+  }
+
+  // ---- squatting figure (side view, facing right) ----
+  // one beat = one rep: deepest point on the beat, standing halfway to the next beat
+  const legEl = $('leg'), torsoEl = $('torso'), armEl = $('arm'), headEl = $('head');
+  const FLOOR = 114;
+  const pt = ([x, y]) => x.toFixed(1) + ',' + (FLOOR - y).toFixed(1);
+  function pose(d) {
+    const r = Math.PI / 180;
+    const shin = d * 38 * r, thigh = d * 98 * r, lean = d * 42 * r, arm = (10 + d * 80) * r;
+    const ankle = [56, 4];
+    const knee = [ankle[0] + 27 * Math.sin(shin), ankle[1] + 27 * Math.cos(shin)];
+    const hip = [knee[0] - 28 * Math.sin(thigh), knee[1] + 28 * Math.cos(thigh)];
+    const shoulder = [hip[0] + 30 * Math.sin(lean), hip[1] + 30 * Math.cos(lean)];
+    const head = [shoulder[0] + 11 * Math.sin(lean), shoulder[1] + 11 * Math.cos(lean)];
+    const hand = [shoulder[0] + 26 * Math.sin(arm), shoulder[1] - 26 * Math.cos(arm)];
+    legEl.setAttribute('points', [[70, 1], ankle, knee, hip].map(pt).join(' '));
+    const [hx, hy] = pt(hip).split(','), [sx, sy] = pt(shoulder).split(','), [ax, ay] = pt(hand).split(',');
+    torsoEl.setAttribute('x1', hx); torsoEl.setAttribute('y1', hy);
+    torsoEl.setAttribute('x2', sx); torsoEl.setAttribute('y2', sy);
+    armEl.setAttribute('x1', sx); armEl.setAttribute('y1', sy);
+    armEl.setAttribute('x2', ax); armEl.setAttribute('y2', ay);
+    const [cx, cy] = pt(head).split(',');
+    headEl.setAttribute('cx', cx); headEl.setAttribute('cy', cy);
+  }
+
+  const pulse = $('pulse');
+  let lastBeat = 0, depth = 0;
+  function frame() {
+    let target = 0;
+    if (playing && ctx) {
+      const now = ctx.currentTime;
+      while (beatQueue.length && beatQueue[0] <= now) {
+        lastBeat = beatQueue.shift();
+        const dur = Math.min(320, (60 / bpm()) * 700);
+        pulse.animate(
+          reduceMotion
+            ? [{ opacity: .22 }, { opacity: 0 }]
+            : [{ opacity: .24, transform: 'scale(1)' }, { opacity: 0, transform: 'scale(1.12)' }],
+          { duration: dur, easing: 'ease-out' }
+        );
+      }
+      const next = beatQueue.length ? beatQueue[0] : nextBeat;
+      if (next > lastBeat) {
+        const ph = Math.min(1, Math.max(0, (now - lastBeat) / (next - lastBeat)));
+        target = (1 + Math.cos(2 * Math.PI * ph)) / 2;
+      }
+      renderTime();
+    }
+    // light smoothing so a mid-rep tempo change doesn't make the figure jump
+    depth += (target - depth) * (playing ? 0.6 : 0.15);
+    pose(depth);
+    requestAnimationFrame(frame);
+  }
+
+  let toastTimer = null;
+  function toast(msg) {
+    const t = $('toast');
+    t.textContent = msg;
+    t.classList.add('show');
+    clearTimeout(toastTimer);
+    toastTimer = setTimeout(() => t.classList.remove('show'), 1800);
+  }
+
+  // ---- MP3 export (sequence mode) ----
+  const SR = 44100, KBPS = 96;
+  let exporting = false;
+
+  function loadLame() {
+    if (window.lamejs) return Promise.resolve();
+    return new Promise((res, rej) => {
+      const s = document.createElement('script');
+      s.src = 'https://cdn.jsdelivr.net/npm/lamejs@1.2.1/lame.min.js';
+      s.onload = () => res();
+      s.onerror = () => rej(new Error('lame'));
+      document.head.appendChild(s);
+    });
+  }
+
+  // render one sound with the same synthesis the page plays live
+  async function renderSound(fn, seconds) {
+    const oc = new OfflineAudioContext(1, Math.ceil(SR * seconds), SR);
+    const g = oc.createGain();
+    g.gain.value = 0.7;
+    g.connect(oc.destination);
+    fn(0, oc, g);
+    return (await oc.startRendering()).getChannelData(0);
+  }
+
+  // same beat placement as live playback: first beat half a rep in, chime + re-sync at each change
+  function timeline() {
+    const ev = [], b = settings.bpms, secs = settings.seconds;
+    let t = 0, beat = 30 / b[0], last = beat - 60 / b[0];
+    for (let i = 0; i < settings.count; i++) {
+      const iv = 60 / b[i], end = t + secs[i];
+      if (i > 0) { ev.push([t, 'chime']); beat = Math.max(t + 0.4, last + iv); }
+      for (; beat < end; beat += iv) { ev.push([beat, 'click']); last = beat; }
+      t = end;
+    }
+    ev.push([t, 'fanfare']);
+    return { ev, length: t + 1.3 };
+  }
+
+  async function encodeMp3(onProgress) {
+    await loadLame();
+    const sounds = {
+      click: await renderSound(click, 0.25),
+      chime: await renderSound(chime, 0.5),
+      fanfare: await renderSound(fanfare, 1.1),
+    };
+    const { ev, length } = timeline();
+    const totalSamples = Math.ceil(length * SR);
+    const enc = new lamejs.Mp3Encoder(1, SR, KBPS);
+    const CHUNK = 1152 * 40;
+    const pcm = new Float32Array(CHUNK), pcm16 = new Int16Array(CHUNK);
+    const parts = [];
+    let first = 0;
+    for (let s0 = 0, n = 0; s0 < totalSamples; s0 += CHUNK, n++) {
+      const len = Math.min(CHUNK, totalSamples - s0);
+      pcm.fill(0);
+      while (first < ev.length && Math.round(ev[first][0] * SR) + sounds[ev[first][1]].length <= s0) first++;
+      for (let k = first; k < ev.length; k++) {
+        const start = Math.round(ev[k][0] * SR);
+        if (start >= s0 + len) break;
+        const snd = sounds[ev[k][1]];
+        const to = Math.min(snd.length, s0 + len - start);
+        for (let j = Math.max(0, s0 - start); j < to; j++) pcm[start + j - s0] += snd[j];
+      }
+      for (let j = 0; j < len; j++) pcm16[j] = Math.max(-1, Math.min(1, pcm[j])) * 32767;
+      const mp3 = enc.encodeBuffer(len === CHUNK ? pcm16 : pcm16.subarray(0, len));
+      if (mp3.length) parts.push(new Uint8Array(mp3));
+      if (n % 8 === 0) {
+        onProgress(s0 / totalSamples);
+        await new Promise(r => setTimeout(r));
+      }
+    }
+    const tail = enc.flush();
+    if (tail.length) parts.push(new Uint8Array(tail));
+    return parts;
+  }
+
+  const CRC_TABLE = (() => {
+    const t = new Uint32Array(256);
+    for (let n = 0; n < 256; n++) {
+      let c = n;
+      for (let k = 0; k < 8; k++) c = c & 1 ? 0xEDB88320 ^ (c >>> 1) : c >>> 1;
+      t[n] = c >>> 0;
+    }
+    return t;
+  })();
+  function crc32(parts) {
+    let c = 0xFFFFFFFF;
+    for (const p of parts) for (let i = 0; i < p.length; i++) c = CRC_TABLE[(c ^ p[i]) & 255] ^ (c >>> 8);
+    return (c ^ 0xFFFFFFFF) >>> 0;
+  }
+  // single-file .zip, stored uncompressed (MP3 is already compressed).
+  // The viewer only lets pages save certain file types; .mp3 isn't one of them, .zip is.
+  function zipOne(name, parts) {
+    const nameBytes = new TextEncoder().encode(name);
+    const size = parts.reduce((a, p) => a + p.length, 0);
+    const crc = crc32(parts);
+    const now = new Date();
+    const time = (now.getHours() << 11) | (now.getMinutes() << 5) | (now.getSeconds() >> 1);
+    const date = ((now.getFullYear() - 1980) << 9) | ((now.getMonth() + 1) << 5) | now.getDate();
+    const local = new DataView(new ArrayBuffer(30));
+    [[0, 0x04034b50, 4], [4, 20, 2], [10, time, 2], [12, date, 2], [14, crc, 4], [18, size, 4], [22, size, 4], [26, nameBytes.length, 2]]
+      .forEach(([o, v, w]) => (w === 4 ? local.setUint32(o, v, true) : local.setUint16(o, v, true)));
+    const central = new DataView(new ArrayBuffer(46));
+    [[0, 0x02014b50, 4], [4, 20, 2], [6, 20, 2], [12, time, 2], [14, date, 2], [16, crc, 4], [20, size, 4], [24, size, 4], [28, nameBytes.length, 2]]
+      .forEach(([o, v, w]) => (w === 4 ? central.setUint32(o, v, true) : central.setUint16(o, v, true)));
+    const end = new DataView(new ArrayBuffer(22));
+    [[0, 0x06054b50, 4], [8, 1, 2], [10, 1, 2], [12, 46 + nameBytes.length, 4], [16, 30 + nameBytes.length + size, 4]]
+      .forEach(([o, v, w]) => (w === 4 ? end.setUint32(o, v, true) : end.setUint16(o, v, true)));
+    return new Blob([local, nameBytes, ...parts, central, nameBytes, end]);
+  }
+
+  $('exportBtn').addEventListener('click', async () => {
+    if (exporting) return;
+    exporting = true;
+    if (playing) pause();
+    const btn = $('exportBtn'), note = $('exportNote');
+    btn.disabled = true;
+    btn.textContent = '製作中… 0%';
+    try {
+      const parts = await encodeMp3(p => { btn.textContent = `製作中… ${Math.round(p * 100)}%`; });
+      const tag = settings.bpms.slice(0, settings.count).join('-');
+      const secs = settings.seconds.slice(0, settings.count).reduce((a, b) => a + b, 0);
+      const name = `深蹲節奏_${tag}_${secs}秒`;
+      if (typeof window.claude?.use === 'function') {
+        const dl = await window.claude.use('downloads');
+        if (!dl) { note.textContent = '這個畫面不能存檔，請在 claude.ai 打開這個網頁再試。'; return; }
+        btn.textContent = '請確認存檔…';
+        await dl.save({ filename: `${name}.zip`, data: zipOne(`squat-tempo_${tag}_${secs}s.mp3`, parts) });
+        note.textContent = '已存成 .zip，解壓縮後裡面就是 MP3。';
+      } else {
+        // opened as a plain local file: the browser can save the .mp3 directly
+        const url = URL.createObjectURL(new Blob(parts, { type: 'audio/mpeg' }));
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `${name}.mp3`;
+        document.body.appendChild(a);
+        a.click();
+        a.remove();
+        setTimeout(() => URL.revokeObjectURL(url), 60000);
+        note.textContent = '已匯出 MP3。';
+      }
+    } catch (e) {
+      const code = e && e.code;
+      note.textContent =
+        code === 'declined' ? '已取消存檔。' :
+        code === 'rate_limited' ? '已經有一個存檔視窗開著，稍等一下再按。' :
+        e && e.message === 'lame' ? '載入 MP3 編碼器失敗，請確認網路連線後再試。' :
+        '匯出失敗，請再試一次。';
+    } finally {
+      exporting = false;
+      btn.disabled = false;
+      render();
+    }
+  });
+
+  // ---- controls ----
+  $('play').addEventListener('click', () => (playing ? pause() : start()));
+  $('random').addEventListener('click', () => (isSeq() ? nextInSequence(false) : randomSwitch(false)));
+  $('modeRandom').addEventListener('click', () => setMode('random'));
+  $('modeSeq').addEventListener('click', () => setMode('sequence'));
+
+  const loopEl = $('loop');
+  loopEl.value = settings.loop ? '1' : '0';
+  loopEl.addEventListener('change', () => { settings.loop = loopEl.value === '1'; save(); });
+  $('resetStats').addEventListener('click', () => { elapsed = 0; beats = 0; render(); });
+
+  $('countDown').addEventListener('click', () => setCount(settings.count - 1));
+  $('countUp').addEventListener('click', () => setCount(settings.count + 1));
+
+  const volEl = $('volume');
+  volEl.value = settings.volume;
+  volEl.addEventListener('input', () => {
+    settings.volume = Number(volEl.value);
+    applyVolume();
+    save();
+  });
+
+  document.addEventListener('keydown', e => {
+    if (e.code !== 'Space' || e.target.matches('input, select, button')) return;
+    e.preventDefault();
+    playing ? pause() : start();
+  });
+
+  render();
+  requestAnimationFrame(frame);
+})();
+</script>
